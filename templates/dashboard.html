@@ -1,1 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Alpha Hunt | 顶级美股扫描</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --card: #181b21;
+            --text: #ffffff;
+            --accent: #3d5afe;
+            --green: #00e676;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        /* 头部 */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 20px;
+        }
+        h1 { margin: 0; font-size: 24px; letter-spacing: 1px; }
+        .subtitle { color: #888; font-size: 14px; margin-top: 5px; }
+        
+        /* 按钮 */
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        button:hover { background-color: #304ffe; transform: translateY(-2px); }
+        button:disabled { background-color: #555; cursor: not-allowed; }
 
+        /* 加载条 */
+        #loader {
+            display: none;
+            text-align: center;
+            margin: 40px 0;
+            color: #888;
+        }
+
+        /* 结果网格 */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 20px;
+        }
+
+        /* 股票卡片 */
+        .card {
+            background-color: var(--card);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #2a2f38;
+            cursor: pointer;
+            transition: 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .card-top { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        .symbol { font-size: 22px; font-weight: 800; }
+        .price { font-size: 18px; color: #ccc; }
+        
+        .change { color: var(--green); font-weight: bold; }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 13px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        .label { color: #666; }
+        .val { font-weight: 600; float: right; }
+        .highlight { color: #ffeb3b; }
+
+        /* 信号标签 */
+        .badge {
+            position: absolute;
+            top: 0; right: 0;
+            background: var(--green);
+            color: black;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-bottom-left-radius: 6px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>ALPHA HUNT <span style="color:var(--accent)">PRO</span></h1>
+                <div class="subtitle">策略：趋势多头 + MACD 零轴加速 + 放量</div>
+            </div>
+            <button onclick="startScan()" id="btn">🚀 开始全网扫描</button>
+        </header>
+
+        <div id="loader">
+            <h3>正在连接交易所数据流...</h3>
+            <p>正在并行分析 K 线结构，请稍候...</p>
+        </div>
+
+        <div id="grid" class="grid"></div>
+        <div id="empty" style="display:none; text-align:center; color:#666; margin-top:50px;">
+            本次扫描未发现符合严苛标准的标的，建议空仓休息。
+        </div>
+    </div>
+
+    <script>
+        async function startScan() {
+            const btn = document.getElementById('btn');
+            const grid = document.getElementById('grid');
+            const loader = document.getElementById('loader');
+            const empty = document.getElementById('empty');
+
+            // UI 状态重置
+            btn.disabled = true;
+            btn.innerText = "扫描计算中...";
+            grid.innerHTML = '';
+            empty.style.display = 'none';
+            loader.style.display = 'block';
+
+            try {
+                // 请求后端
+                const res = await fetch('/api/scan', { method: 'POST' });
+                const data = await res.json();
+
+                loader.style.display = 'none';
+                btn.disabled = false;
+                btn.innerText = "🚀 重新扫描";
+
+                if (data.length === 0) {
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                // 渲染卡片
+                data.forEach(stock => {
+                    const html = `
+                        <div class="card" onclick="window.open('https://www.tradingview.com/chart/?symbol=${stock.symbol}', '_blank')">
+                            <div class="badge">STRONG BUY</div>
+                            <div class="card-top">
+                                <div>
+                                    <div class="symbol">${stock.symbol}</div>
+                                    <div class="price">$${stock.price}</div>
+                                </div>
+                                <div style="text-align:right">
+                                    <div class="change">+${stock.change}%</div>
+                                </div>
+                            </div>
+                            <div class="stats">
+                                <div><span class="label">RSI 强度</span> <span class="val">${stock.rsi}</span></div>
+                                <div><span class="label">量能倍数</span> <span class="val highlight">${stock.vol_ratio}x</span></div>
+                            </div>
+                        </div>
+                    `;
+                    grid.innerHTML += html;
+                });
+
+            } catch (err) {
+                console.error(err);
+                loader.innerHTML = "<h3 style='color:red'>扫描出错，请检查终端日志</h3>";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
